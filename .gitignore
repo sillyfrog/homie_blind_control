@@ -1,0 +1,12 @@
+.pio
+.pioenvs
+.piolibdeps
+.vscode
+lib
+include
+test
+*.json
+.DS_Store
+
+NOTES.txt
+samples

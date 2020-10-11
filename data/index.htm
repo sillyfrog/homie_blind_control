@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z"
+      crossorigin="anonymous"
+    />
+
+    <title>Blind Control</title>
+  </head>
+  <body onload="setup();">
+    <div class="container">
+      <div class="alert alert-success fade" role="alert" id="alertdlg"></div>
+      <h1>Blind Control</h1>
+      <form id="theform" onsubmit="return false;">
+        <div class="form-group row">
+          <label class="col-sm-2 col-form-label">Recent Remotes</label>
+          <div class="col-sm-10">
+            <select
+              class="custom-select"
+              id="selrecentremotes"
+              onchange="recentremoteupdate();"
+            ></select>
+          </div>
+          <label class="col-sm-2 col-form-label">Remote ID</label>
+          <div class="col-sm-10">
+            <input class="form-control" id="remoteid" required />
+          </div>
+          <label class="col-sm-2 col-form-label">Channel</label>
+          <div class="col-sm-10">
+            <select class="custom-select" id="selchannel">
+              <option>1</option>
+              <option>2</option>
+              <option>3</option>
+              <option>4</option>
+              <option>5</option>
+              <option>6</option>
+              <option>7</option>
+              <option>8</option>
+              <option>9</option>
+              <option>10</option>
+              <option>11</option>
+              <option>12</option>
+              <option>13</option>
+              <option>14</option>
+              <option value="0">All</option>
+            </select>
+          </div>
+        </div>
+        <table style="text-align: center; width: 100%">
+          <tr>
+            <td colspan="3">
+              <button
+                class="btn btn-primary"
+                onclick="return sendCommand('up');"
+              >
+                Up
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3">
+              <button
+                class="btn btn-primary"
+                onclick="return sendCommand('stop');"
+              >
+                Stop
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="3">
+              <button
+                class="btn btn-primary"
+                onclick="return sendCommand('down');"
+              >
+                Down
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td style="width: 33%">
+              <button
+                class="btn btn-secondary btn-sm"
+                onclick="return sendCommand('pair');"
+              >
+                Pair/Confirm
+              </button>
+            </td>
+            <td style="width: 33%">
+              <button
+                class="btn btn-secondary btn-sm"
+                onclick="return sendCommand('limit');"
+              >
+                Limit
+              </button>
+            </td>
+            <td style="width: 33%">
+              <button
+                class="btn btn-secondary btn-sm"
+                onclick="return sendCommand('direction');"
+              >
+                Direction
+              </button>
+            </td>
+          </tr>
+        </table>
+      </form>
+    </div>
+  </body>
+  <script>
+    var recentRemotes = [];
+    function setup() {
+      recentRemotesUpdate();
+    }
+
+    function recentRemotesUpdate() {
+      fetch("remotes", {})
+        .then(function (resp) {
+          if (resp.ok) {
+            return resp.json();
+          }
+        })
+        .then(function (response) {
+          console.log("Rsponse:", response);
+          recentRemotes = response;
+          recentRemotes.unshift("");
+          resetRecentRemotes();
+        })
+        .catch(function (error) {
+          console.error("Major Error:", error);
+          showAlert(
+            "Network error saving LED file (" +
+              dets.name +
+              "): " +
+              resp.statusText,
+            "savepattern"
+          );
+        });
+    }
+
+    function resetRecentRemotes() {
+      selrecentremotes.innerHTML = "";
+      for (var remote of recentRemotes) {
+        var opt = document.createElement("option");
+        opt.innerText = remote;
+        opt.value = remote;
+        selrecentremotes.appendChild(opt);
+      }
+    }
+
+    function recentremoteupdate() {
+      if (selrecentremotes.value) {
+        remoteid.value = selrecentremotes.value;
+      }
+    }
+
+    function sendCommand(cmd) {
+      if (remoteid.value.length < 3) {
+        remoteid.classList.add("is-invalid");
+        return false;
+      }
+      remoteid.classList.remove("is-invalid");
+      command = cmd + "," + remoteid.value + "," + selchannel.value;
+      console.log("Sending command:", command);
+      var formData = new FormData();
+      formData.append("cmd", command);
+      return fetch("command", {
+        method: "POST",
+        body: formData,
+      }).then(function (response) {
+        if (response.ok) {
+          alertdlg.classList.add("alert-success");
+          alertdlg.classList.remove("alert-danger");
+          alertdlg.innerHTML = 'Command "' + command + '" Sent OK!';
+        } else {
+          alertdlg.classList.remove("alert-success");
+          alertdlg.classList.add("alert-danger");
+          alertdlg.innerHTML = 'Error sending command: "' + command + '"';
+        }
+        alertdlg.classList.add("show");
+      });
+
+      return false;
+    }
+  </script>
+</html>
