@@ -61,3 +61,5 @@ For example, to open a blind, run the following command:
 ```
 mosquitto_pub -t homie/test-blinds/command/send/set -m down,748f,1
 ```
+
+You can also subscribe to events to see what's messages have been recived. For the example above, there would be a corresponding message with the topic `homie/test-blinds/command/received`, and a payload of `DOWN,748f,1` (as there is a receiver right next to the transmitter, this message will "loop back" to itself).
