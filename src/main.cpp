@@ -12,6 +12,9 @@
 // If you want the built in LED to flash when a signal is received, uncomment the following
 // #define FLASH_ON_INPUT
 
+// If you want the built in LED to flash when a signal is sent, uncomment the following
+#define FLASH_ON_SEND
+
 // To not track and publish the temperature, comment out the following line
 #define MONITOR_TEMPERATURE
 // SHT3X pin allocation: SDA/SCL
@@ -29,10 +32,12 @@
 #endif
 
 #define FW_NAME "blind-control"
-#define FW_VERSION "1.0.2"
+#define FW_VERSION "1.1.1"
 
-String command;
-uint64_t activeCommand = 0;
+#define COMMAND_LEN 100
+uint64_t commandQueue[COMMAND_LEN];
+uint8_t queueEnd = 0;
+uint8_t queueActive = 0;
 uint8_t commandRepeat = 0;
 #define COMMAND_REPEAT_COUNT 3
 uint64_t lastBroadcastCommand = 0;
@@ -134,6 +139,17 @@ void readEnvironment()
 }
 #endif
 
+// Increment a queue pointer by one, wrapping if required
+uint8_t incQueue(uint8_t i)
+{
+  i++;
+  if (i >= COMMAND_LEN)
+  {
+    i = 0;
+  }
+  return i;
+}
+
 void setupHandler()
 {
   server.begin();
@@ -170,8 +186,12 @@ void ledBlink()
 
 void ledOff()
 {
-  ledstate = 1;
-  digitalWrite(LED_BUILTIN, ledstate);
+  digitalWrite(LED_BUILTIN, 1);
+}
+
+void ledOn()
+{
+  digitalWrite(LED_BUILTIN, 0);
 }
 
 bool broadcastHandler(const String &level, const String &value)
@@ -185,14 +205,16 @@ bool broadcastHandler(const String &level, const String &value)
   return true;
 }
 
+void queueCommand(String strcommand)
+{
+  commandQueue[queueEnd] = stringCommandToCommand(strcommand);
+  queueEnd = incQueue(queueEnd);
+}
+
 bool commandHandler(const HomieRange &range, const String &value)
 {
-  if (command.length() == 0)
-  {
-    command = value;
-    return true;
-  }
-  return false;
+  queueCommand(value);
+  return true;
 }
 
 void handleWebCommand(AsyncWebServerRequest *request)
@@ -200,7 +222,7 @@ void handleWebCommand(AsyncWebServerRequest *request)
   String reqcommand = request->arg("cmd");
   if (reqcommand.length() > 6)
   {
-    command = reqcommand;
+    queueCommand(reqcommand);
     request->send(200, "text/plain", "OK");
   }
   else
@@ -234,6 +256,9 @@ void setup()
 #ifdef FLASH_ON_INPUT
   pinMode(LED_BUILTIN, OUTPUT);
 #endif
+#ifdef FLASH_ON_SEND
+  pinMode(LED_BUILTIN, OUTPUT);
+#endif
   attachInterrupt(digitalPinToInterrupt(INPUT_PIN), changeInput, CHANGE);
 #endif
 
@@ -264,20 +289,25 @@ void loop()
     everySecondHandler();
     lastSecond = micros64() / 1000000;
   }
-  if (command.length())
+  if (commandRepeat > 0)
   {
-    activeCommand = stringCommandToCommand(command);
-    commandRepeat = COMMAND_REPEAT_COUNT;
-    command = "";
-  }
-  if (activeCommand)
-  {
-    sendMarkisolCommand(activeCommand);
-    commandRepeat -= 1;
+#ifdef FLASH_ON_SEND
+    ledOn();
+#endif
+    sendMarkisolCommand(commandQueue[queueActive]);
+#ifdef FLASH_ON_SEND
+    ledOff();
+#endif
+    commandRepeat--;
     if (commandRepeat == 0)
     {
-      activeCommand = 0;
+      queueActive = incQueue(queueActive);
     }
+  }
+  else if (queueActive != queueEnd)
+  {
+    Serial << "Queuing command index: " << queueActive << endl;
+    commandRepeat = COMMAND_REPEAT_COUNT;
   }
 
 #ifdef MONITOR_TEMPERATURE
