@@ -32,13 +32,13 @@
 #endif
 
 #define FW_NAME "blind-control"
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.2.0"
 
 #define COMMAND_LEN 100
 uint64_t commandQueue[COMMAND_LEN];
+uint8_t commandRetryQueue[COMMAND_LEN];
 uint8_t queueEnd = 0;
 uint8_t queueActive = 0;
-uint8_t commandRepeat = 0;
 #define COMMAND_REPEAT_COUNT 3
 uint64_t lastBroadcastCommand = 0;
 uint64_t timeRepeatBroadcast = 0;
@@ -208,6 +208,7 @@ bool broadcastHandler(const String &level, const String &value)
 void queueCommand(String strcommand)
 {
   commandQueue[queueEnd] = stringCommandToCommand(strcommand);
+  commandRetryQueue[queueEnd] = COMMAND_REPEAT_COUNT;
   queueEnd = incQueue(queueEnd);
 }
 
@@ -289,25 +290,29 @@ void loop()
     everySecondHandler();
     lastSecond = micros64() / 1000000;
   }
-  if (commandRepeat > 0)
+
+  bool queueEmpty = true;
+  for (uint8_t i = queueActive; i < COMMAND_LEN; i++)
   {
-#ifdef FLASH_ON_SEND
-    ledOn();
-#endif
-    sendMarkisolCommand(commandQueue[queueActive]);
-#ifdef FLASH_ON_SEND
-    ledOff();
-#endif
-    commandRepeat--;
-    if (commandRepeat == 0)
+    if (commandRetryQueue[i] > 0)
     {
-      queueActive = incQueue(queueActive);
+      commandRetryQueue[i]--;
+#ifdef FLASH_ON_SEND
+      ledOn();
+#endif
+      sendMarkisolCommand(commandQueue[i]);
+#ifdef FLASH_ON_SEND
+      ledOff();
+#endif
+      Serial << "Sending index: " << i << endl;
+      queueActive = incQueue(i);
+      queueEmpty = false;
+      break;
     }
   }
-  else if (queueActive != queueEnd)
+  if (queueEmpty)
   {
-    Serial << "Queuing command index: " << queueActive << endl;
-    commandRepeat = COMMAND_REPEAT_COUNT;
+    queueActive = 0;
   }
 
 #ifdef MONITOR_TEMPERATURE
